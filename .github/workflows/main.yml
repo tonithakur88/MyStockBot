@@ -1,18 +1,19 @@
-name: Daily Stock Scan
+name: Hourly Stock Scan
 on:
   schedule:
-    - cron: '30 10 * * 1-5' # Indian Time: 4:00 PM
-  workflow_dispatch: # Manual run ke liye
+    # Ye Indian Time ke hisaab se subah 9:30 se shaam 4:30 tak har ghante chalega (Mon-Fri)
+    - cron: '00 04-11 * * 1-5'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Version v2 se v4 kar diya (Warning khatam)
+        uses: actions/checkout@v4
         
       - name: Set up Python
-        uses: actions/setup-python@v5 # Version v2 se v5 kar diya (Warning khatam)
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           

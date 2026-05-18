@@ -1,12 +1,13 @@
 import yfinance as yf
 import telebot
 import os
+from datetime import datetime
 
 TOKEN = os.environ['BOT_TOKEN']
 CHAT_ID = os.environ['CHAT_ID']
 bot = telebot.TeleBot(TOKEN)
 
-# Stocks list (Isme aap aur bhi add kar sakte hain)
+# Tere 200+ stocks ki list
 STOCKS = [
     'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'BHARTIARTL.NS', 'ITC.NS', 'SBIN.NS', 'LICI.NS', 'HINDUNILVR.NS',
     'LT.NS', 'BAJFINANCE.NS', 'HCLTECH.NS', 'MARUTI.NS', 'SUNPHARMA.NS', 'ADANIENT.NS', 'TATAMOTORS.NS', 'TITAN.NS', 'ONGC.NS', 'NTPC.NS',
@@ -29,13 +30,29 @@ STOCKS = [
     'AETHER.NS', 'CLEAN.NS', 'TATAPOWER.NS', 'JSWENERGY.NS', 'CESC.NS', 'MAZDOCK.NS', 'GRSE.NS', 'BDL.NS', 'BEML.NS', 'COCHINSHIP.NS',
     'L&TFH.NS', 'MFSL.NS', 'PEL.NS', 'POONAWALLA.NS', 'CREDITACC.NS', 'MSUMI.NS', 'SONACOMS.NS', 'TIINDIA.NS', 'UNOMINDA.NS', 'ENDURANCE.NS'
 ]
+
+def get_market_mood():
+    try:
+        nifty = yf.download('^NSEI', period='2d', progress=False)
+        prev_close = nifty['Close'].iloc[-2]
+        curr_price = nifty['Close'].iloc[-1]
+        diff = curr_price - prev_close
+        pct = (diff / prev_close) * 100
+        
+        mood = " Bullish" if diff > 0 else " Bearish"
+        emoji = "📈" if diff > 0 else "📉"
+        return f"{emoji} *Nifty 50 Mood:* {mood} ({diff:+.2f} pts | {pct:+.2f}%)\n"
+    except:
+        return "⚠️ Nifty data nahi mil paya.\n"
+
 def check_stocks():
-    msg = "📊 *Market Scanner Report*\n\n"
+    msg = get_market_mood()
+    msg += f"⏰ *Scan Time:* {datetime.now().strftime('%I:%M %p')}\n"
+    msg += "----------------------------\n\n"
     found_any = False
     
     for symbol in STOCKS:
         try:
-            # 2 saal ka data le rahe hain taaki ATH aur 200 EMA mil sake
             data = yf.download(symbol, period="2y", interval="1d", progress=False)
             if len(data) < 200: continue
             
@@ -44,37 +61,40 @@ def check_stocks():
             ath = data['High'].max()
             atl = data['Low'].min()
             
-            # Conditions Check kar rahe hain
-            c1 = current_price > ema200  # Condition 1: Above 200 EMA
-            c2 = current_price >= (ath * 0.98)  # Condition 2: Near All Time High (2% range)
-            c3 = current_price <= (atl * 1.05)  # Condition 3: Near All Time Low (5% range)
+            # Nayi Condition: 200 EMA ke 3% ke डेयर (Range) mein hai ya nahi
+            ema_upper_limit = ema200 * 1.03
+            ema_lower_limit = ema200 * 0.97
+            
+            c1 = current_price > ema200
+            c2 = current_price >= (ath * 0.98)
+            c3 = current_price <= (atl * 1.05)
+            c4 = ema_lower_limit <= current_price <= ema_upper_limit # Near 200 EMA
             
             conditions_met = []
             if c1: conditions_met.append("🟢 Above 200 EMA")
             if c2: conditions_met.append("🚀 Near All Time High")
             if c3: conditions_met.append("⚠️ Near All Time Low")
+            if c4: conditions_met.append("🎯 Near 200 EMA Support/Resistance (3% Range)")
             
-            # Agar 1 bhi condition puri ho rahi hai toh list mein dalo
             if len(conditions_met) > 0:
                 found_any = True
-                msg += f"📦 *{symbol}*\n"
-                msg += f"💰 Price: {current_price:.2f}\n"
-                msg += f"✅ *Met {len(conditions_met)}/3 Conditions:*\n"
+                msg += f"📦 *{symbol.split('.')[0]}* | Price: {current_price:.2f}\n"
                 for c in conditions_met:
                     msg += f"  - {c}\n"
                 msg += "----------------------------\n"
                 
-        except Exception as e:
-            print(f"Error checking {symbol}: {e}")
+        except:
             continue
             
     if found_any:
-        # Telegram ki limit 4096 characters hoti hai, isliye msg check kar rahe hain
+        # Agar message bahut bada ho jaye toh parts mein bhejenge
         if len(msg) > 4000:
-            bot.send_message(CHAT_ID, "⚠️ Report badi hai, kuch stocks skip ho sakte hain.")
-        bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
+            for i in range(0, len(msg), 4000):
+                bot.send_message(CHAT_ID, msg[i:i+4000], parse_mode='Markdown')
+        else:
+            bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
     else:
-        bot.send_message(CHAT_ID, "❌ Aaj koi bhi stock criteria match nahi kar raha.")
+        bot.send_message(CHAT_ID, "❌ Koi stock match nahi hua.")
 
 if __name__ == "__main__":
     check_stocks()

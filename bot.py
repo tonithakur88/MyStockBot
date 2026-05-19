@@ -110,16 +110,3 @@ def check_stocks():
 if __name__ == "__main__":
     # Pehli baar run turant karega jaise hi script start hogi
     check_stocks()
-    
-    # Engine set kar rahe hain jo har 60 minute mein isse chalu rakhegi
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(check_stocks, 'interval', minutes=60)
-    scheduler.start()
-    print("Loop Scanner chalu ho gaya hai...")
-
-    # Is code ko continuous chalu rakhne ke liye infinite loop
-    try:
-        while True:
-            time.sleep(1)
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()

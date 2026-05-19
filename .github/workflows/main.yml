@@ -1,20 +1,17 @@
-name: Hourly Stock Scan
+name: Fixed Hourly Stock Scan
 on:
   schedule:
-    # Indian Time ke hisaab se har ghante ka schedule (9:30, 10:30, 11:30, 12:30, 1:30, 2:30, 3:30, 4:30)
+    # Indian Time ke hisaab se roz subah 9:30 baje GitHub ek baar jagega
     - cron: '00 04 * * 1-5'
-    - cron: '00 05 * * 1-5'
-    - cron: '00 06 * * 1-5'
-    - cron: '00 07 * * 1-5'
-    - cron: '00 08 * * 1-5'
-    - cron: '00 09 * * 1-5'
-    - cron: '00 10 * * 1-5'
-    - cron: '00 11 * * 1-5'
-  workflow_dispatch: # Manual button ke liye
+  workflow_dispatch: # Manual chalu karne ke liye
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Ye hain tere har ghante ke offsets (0 min, 60 min, 120 min, 180 min...)
+        delay: [0, 60, 120, 180, 240, 300, 360, 420]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,6 +23,10 @@ jobs:
           
       - name: Install dependencies
         run: pip install -r requirements.txt
+        
+      - name: Wait for Hourly Slot
+        # Ye command code ko uske sahi ghante tak rok kar rakhegi
+        run: sleep $(( ${{ matrix.delay }} * 60 ))
         
       - name: Run Bot
         env:

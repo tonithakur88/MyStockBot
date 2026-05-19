@@ -1,13 +1,14 @@
 import yfinance as yf
 import telebot
 import os
+import time
 from datetime import datetime
+from apscheduler.schedulers.background import BackgroundScheduler
 
 TOKEN = os.environ['BOT_TOKEN']
 CHAT_ID = os.environ['CHAT_ID']
 bot = telebot.TeleBot(TOKEN)
 
-# Tere 200+ stocks ki list
 STOCKS = [
     'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS', 'BHARTIARTL.NS', 'ITC.NS', 'SBIN.NS', 'LICI.NS', 'HINDUNILVR.NS',
     'LT.NS', 'BAJFINANCE.NS', 'HCLTECH.NS', 'MARUTI.NS', 'SUNPHARMA.NS', 'ADANIENT.NS', 'TATAMOTORS.NS', 'TITAN.NS', 'ONGC.NS', 'NTPC.NS',
@@ -33,7 +34,6 @@ STOCKS = [
 
 def get_market_mood():
     try:
-        # Nifty data extract karne ka ekdum safe tarika
         nifty = yf.Ticker('^NSEI')
         df = nifty.history(period='5d')
         if len(df) >= 2:
@@ -41,15 +41,23 @@ def get_market_mood():
             curr_price = float(df['Close'].iloc[-1])
             diff = curr_price - prev_close
             pct = (diff / prev_close) * 100
-            
             mood = "Bullish" if diff > 0 else "Bearish"
             emoji = "📈" if diff > 0 else "📉"
             return f"{emoji} *Nifty 50 Mood:* {mood} ({diff:+.2f} pts | {pct:+.2f}%)\n"
-    except Exception as e:
-        print(f"Nifty Error: {e}")
+    except:
+        pass
     return "⚠️ Nifty status abhi available nahi hai.\n"
 
 def check_stocks():
+    # Sirf Indian Market Hours (Subah 9:15 se Shaam 4:30) ke beech hi message bhejega
+    current_hour = datetime.now().hour
+    current_minute = datetime.now().minute
+    
+    # 24-hour format mein check (9:00 AM se 4:30 PM tak scan karega)
+    if not (9 <= current_hour <= 16):
+        print("Market band hai, scan skip kiya.")
+        return
+
     msg = get_market_mood()
     msg += f"⏰ *Scan Time:* {datetime.now().strftime('%I:%M %p')} (IST)\n"
     msg += "----------------------------\n\n"
@@ -58,7 +66,6 @@ def check_stocks():
     for symbol in STOCKS:
         try:
             ticker = yf.Ticker(symbol)
-            # 2 saal ka data history standard tarike se download kar rahe hain
             data = ticker.history(period="2y")
             if len(data) < 200: continue
             
@@ -67,7 +74,6 @@ def check_stocks():
             ath = float(data['High'].max())
             atl = float(data['Low'].min())
             
-            # 200 EMA ke 3% ka area (Upper and Lower range)
             ema_upper_limit = ema200 * 1.03
             ema_lower_limit = ema200 * 0.97
             
@@ -82,7 +88,6 @@ def check_stocks():
             if c3: conditions_met.append("⚠️ Near All Time Low")
             if c4: conditions_met.append("🎯 Near 200 EMA (3% Range)")
             
-            # Agar kam se kam ek condition met hai toh report mein add karo
             if len(conditions_met) > 0:
                 found_any = True
                 clean_name = symbol.replace('.NS', '')
@@ -90,20 +95,31 @@ def check_stocks():
                 for c in conditions_met:
                     msg += f"  - {c}\n"
                 msg += "----------------------------\n"
-                
-        except Exception as e:
-            print(f"Error checking {symbol}: {e}")
+        except:
             continue
             
     if found_any:
-        # 4000 characters se bada msg hone par parts mein send karega
         if len(msg) > 4000:
             for i in range(0, len(msg), 4000):
                 bot.send_message(CHAT_ID, msg[i:i+4000], parse_mode='Markdown')
         else:
             bot.send_message(CHAT_ID, msg, parse_mode='Markdown')
     else:
-        bot.send_message(CHAT_ID, msg + "❌ Koi stock match nahi hua aaj.", parse_mode='Markdown')
+        bot.send_message(CHAT_ID, msg + "❌ Koi stock match nahi hua.", parse_mode='Markdown')
 
 if __name__ == "__main__":
+    # Pehli baar run turant karega jaise hi script start hogi
     check_stocks()
+    
+    # Engine set kar rahe hain jo har 60 minute mein isse chalu rakhegi
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(check_stocks, 'interval', minutes=60)
+    scheduler.start()
+    print("Loop Scanner chalu ho gaya hai...")
+
+    # Is code ko continuous chalu rakhne ke liye infinite loop
+    try:
+        while True:
+            time.sleep(1)
+    except (KeyboardInterrupt, SystemExit):
+        scheduler.shutdown()

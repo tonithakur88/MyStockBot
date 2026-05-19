@@ -1,9 +1,6 @@
-name: Hourly Stock Scan
+name: Continuous Loop Stock Scan
 on:
-  schedule:
-    # Ye Indian Time ke hisaab se subah 9:30 se shaam 4:30 tak har ghante chalega (Mon-Fri)
-    - cron: '00 04-11 * * 1-5'
-  workflow_dispatch:
+  workflow_dispatch: # Sirf manual run karne ke liye
 
 jobs:
   build:
@@ -20,8 +17,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
         
-      - name: Run bot
+      - name: Run Background Bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python bot.py
+        # GitHub action ko 6 ghante (21600 seconds) tak lagatar chalu rakhne ka system
+        run: timeout 21600 python bot.py || true

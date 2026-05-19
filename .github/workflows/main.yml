@@ -1,16 +1,16 @@
 name: Fixed Hourly Stock Scan
 on:
   schedule:
-    # Indian Time ke hisaab se roz subah 9:30 baje GitHub ek baar jagega
+    # Indian Time ke hisaab se roz subah 9:30 baje chalu hoga
     - cron: '00 04 * * 1-5'
-  workflow_dispatch: # Manual chalu karne ke liye
+  workflow_dispatch: # Manual button ke liye
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Ye hain tere har ghante ke offsets (0 min, 60 min, 120 min, 180 min...)
+        # 0 se lekar 420 minutes (7 ghante) ka delay
         delay: [0, 60, 120, 180, 240, 300, 360, 420]
     steps:
       - name: Checkout code
@@ -25,8 +25,12 @@ jobs:
         run: pip install -r requirements.txt
         
       - name: Wait for Hourly Slot
-        # Ye command code ko uske sahi ghante tak rok kar rakhegi
-        run: sleep $(( ${{ matrix.delay }} * 60 ))
+        # Bash ka sahi tareeka calculator use karne ka taaki error na aaye
+        run: |
+          MINUTES=${{ matrix.delay }}
+          SECONDS=$((MINUTES * 60))
+          echo "Waiting for $SECONDS seconds before running the bot..."
+          sleep $SECONDS
         
       - name: Run Bot
         env:
